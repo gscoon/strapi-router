@@ -87,7 +87,7 @@ async function start() {
         console.log('SNI serverName', serverName);
 
         const site = await greenlock.get({
-            subject: serverName,
+            serverName,
         })
 
         if (!site) {
