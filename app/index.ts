@@ -45,24 +45,24 @@ async function start() {
 
     await doGreenlock(domains);
 
-    const app = express();
-    app.use((req: Request, res: Response, next: NextFunction) => {
-        const domain = domains.find((d) => d.domainName === req.headers.host);
-        if (!domain) {
-            return res.status(404).send(`Domain not found ${req.headers.host}`);
-        }
+    // const app = express();
+    // app.use((req: Request, res: Response, next: NextFunction) => {
+    //     const domain = domains.find((d) => d.domainName === req.headers.host);
+    //     if (!domain) {
+    //         return res.status(404).send(`Domain not found ${req.headers.host}`);
+    //     }
 
-        const target = `${domain.forwardHost}:${domain.forwardPort}`;
+    //     const target = `${domain.forwardHost}:${domain.forwardPort}`;
 
-        proxy.web(req, res, { target }, (err) => {
-            console.error('Proxy error', err);
-            res.status(404).send(`Domain proxy error`);
-        });
-    });
+    //     proxy.web(req, res, { target }, (err) => {
+    //         console.error('Proxy error', err);
+    //         res.status(404).send(`Domain proxy error`);
+    //     });
+    // });
 
-    app.listen(portUnsecure, () => {
-        console.log(`Listening on port ${portUnsecure}`);
-    });
+    // app.listen(portUnsecure, () => {
+    //     console.log(`Listening on port ${portUnsecure}`);
+    // });
 }
 
 async function getDomains(): Promise<iDomain[]> {
@@ -87,7 +87,7 @@ async function doGreenlock(domains: iDomain[]) {
         notify: function (event, details) {
             if ('error' === event) {
                 // `details` is an error object in this case
-                console.error(details);
+                console.error('Notify error', details);
             }
         },
         renewWithin: 81 * 24 * 60 * 60 * 1000,
@@ -121,9 +121,8 @@ async function doGreenlock(domains: iDomain[]) {
         }
     });
 
-    staticServer.close();
-
-    console.log('Finished greenlock')
+    console.log('Closing static server')
+    // staticServer.close();
 }
 
 async function setupStaticServer(): Promise<Application> {
