@@ -1,4 +1,5 @@
 import https from 'https';
+import tls from 'tls';
 import httpProxy from 'http-proxy';
 import Greenlock from 'greenlock';
 import express, { Application, Request, Response, NextFunction } from 'express';
@@ -32,6 +33,21 @@ interface iDomain {
 
 const proxy = httpProxy.createProxyServer();
 
+const greenlock = Greenlock.create({
+    packageRoot: rootParentDir,
+    maintainerEmail: 'gscoon@gmail.com',
+    configDir: Path.join(rootParentDir, './greenlock.d'),
+    staging: process.env.NODE_ENV !== 'production',
+    notify: function (event, details) {
+        if ('error' === event) {
+            // `details` is an error object in this case
+            console.error('Notify error', details);
+        }
+    },
+    renewWithin: 81 * 24 * 60 * 60 * 1000,
+    renewBy: 80 * 24 * 60 * 60 * 1000,
+})
+
 const portUnsecure = parseInt(process.env.ROUTER_PORT || '8080');
 const portSecure = parseInt(process.env.ROUTER_PORT_SECURE || '4433');
 
@@ -41,9 +57,9 @@ async function start() {
     const domains = await getDomains();
     console.log('domains', domains);
 
-    const app = express();
-    app.use(express.static(staticDir));
-    app.use((req: Request, res: Response, next: NextFunction) => {
+    const appUnsecure = express();
+    appUnsecure.use(express.static(staticDir));
+    appUnsecure.use((req: Request, res: Response, next: NextFunction) => {
         const domain = domains.find((d) => d.domainName === req.headers.host);
         if (!domain) {
             return res.status(404).send(`Domain not found ${req.headers.host}`);
@@ -58,7 +74,7 @@ async function start() {
         });
     });
 
-    app.listen(portUnsecure, async () => {
+    appUnsecure.listen(portUnsecure, async () => {
         console.log(`Listening on port ${portUnsecure}`);
         await doGreenlock(domains);
 
@@ -66,17 +82,30 @@ async function start() {
         });
     });
 
+    const sniCallback = async (serverName, callback) => {
+        console.log('SNI serverName', serverName);
 
+        const site = await greenlock.get({
+            subject: serverName,
+        })
 
-    // const httpsOptions = {
-//     key: fs.readFileSync('/path/to/private/key.pem'),
-//     cert: fs.readFileSync('/path/to/certificate.pem'),
-// };
+        if (!site) {
+            callback(new Error('No site found'));
+        }
 
-// https.createServer(
-//     httpsOptions,
-//     greenlock.middleware(app)
-// ).listen(443);
+        callback(null, tls.createSecureContext({
+            cert: site.pems.cert,
+            key: site.pems.key,
+        }));
+    }
+
+    const secureServer = https.createServer({
+        SNICallback: sniCallback,
+    });
+
+    secureServer.listen(portSecure, () => {
+        console.log(`Listening on port ${portSecure}`);
+    });
 }
 
 async function getDomains(): Promise<iDomain[]> {
@@ -91,22 +120,6 @@ async function getDomains(): Promise<iDomain[]> {
 }
 
 async function doGreenlock(domains: iDomain[]) {
-    const greenlock = Greenlock.create({
-        packageRoot: rootParentDir,
-        maintainerEmail: 'gscoon@gmail.com',
-        configDir: Path.join(rootParentDir, './greenlock.d'),
-        staging: process.env.NODE_ENV !== 'production',
-        notify: function (event, details) {
-            if ('error' === event) {
-                // `details` is an error object in this case
-                console.error('Notify error', details);
-            }
-        },
-        renewWithin: 81 * 24 * 60 * 60 * 1000,
-        renewBy: 80 * 24 * 60 * 60 * 1000,
-    })
-
-
     await greenlock.manager.defaults({
         agreeToTerms: true,
         subscriberEmail: 'gscoon@gmail.com',
