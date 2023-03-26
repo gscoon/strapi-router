@@ -94,8 +94,6 @@ async function start() {
             callback(new Error('No site found'));
         }
 
-        console.log('site ssl', site);
-
         callback(null, tls.createSecureContext({
             cert: site.pems.cert,
             key: site.pems.privKey,
