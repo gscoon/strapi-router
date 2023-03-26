@@ -83,7 +83,7 @@ async function doGreenlock(domains: iDomain[]) {
         packageRoot: rootParentDir,
         maintainerEmail: 'gscoon@gmail.com',
         configDir: Path.join(rootParentDir, './greenlock.d'),
-        staging: true,
+        staging: process.env.NODE_ENV !== 'production',
         notify: function (event, details) {
             if ('error' === event) {
                 // `details` is an error object in this case
