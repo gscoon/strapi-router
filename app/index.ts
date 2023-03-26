@@ -70,6 +70,8 @@ async function setupRouter(domains: iDomain[]) {
             },
         };
         const outgoing = `${forwardHost}:${forwardPort}`;
+        console.log(`Domain: ${domainName}`)
+        console.log(`Outgoing: ${outgoing}`)
         proxy.register(domainName, outgoing, options);
     });
 }
