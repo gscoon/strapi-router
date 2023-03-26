@@ -83,11 +83,11 @@ async function start() {
         });
     });
 
-    const sniCallback = async (serverName, callback) => {
-        console.log('SNI serverName', serverName);
+    const sniCallback = async (servername, callback) => {
+        console.log('SNI serverName', servername);
 
         const site = await greenlock.get({
-            serverName,
+            servername,
         })
 
         if (!site) {
