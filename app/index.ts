@@ -34,7 +34,7 @@ const portSecure = parseInt(process.env.ROUTER_PORT_SECURE || '4433');
 
         const domains = data.map(({ id, attributes }) => {
             const { domainName, forwardHost, forwardPort, useSSL } = attributes;
-            return { id, domainName, forwardHost, forwardPort };
+            return { id, domainName, forwardHost, forwardPort, useSSL };
         });
 
         console.log('domains', domains);
