@@ -99,7 +99,6 @@ async function start() {
         callback(null, tls.createSecureContext({
             cert: site.pems.cert,
             key: site.pems.privKey,
-            chain: site.pems.chain,
         }));
     }
 
