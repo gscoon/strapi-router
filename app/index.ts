@@ -21,6 +21,7 @@ interface iDomain {
     domainName: string,
     forwardHost: string,
     forwardPort: number,
+    useSSL: boolean,
 }
 
 
@@ -32,7 +33,7 @@ const portSecure = parseInt(process.env.ROUTER_PORT_SECURE || '4433');
         const { data } = await authGET('/api/domains');
 
         const domains = data.map(({ id, attributes }) => {
-            const { domainName, forwardHost, forwardPort } = attributes;
+            const { domainName, forwardHost, forwardPort, useSSL } = attributes;
             return { id, domainName, forwardHost, forwardPort };
         });
 
@@ -63,16 +64,20 @@ async function setupRouter(domains: iDomain[]) {
         proxyTimeout: timeout,
     });
 
-    await eachSeries(domains, async ({ domainName, forwardHost, forwardPort }) => {
-        const pems = await generateSelfSignedCert([{ name: 'commonName', value: domainName }]);
-        console.log({ domainName, forwardHost, forwardPort, ...pems });
-        const options = {
-            ssl: {
-                redirect: false,
-                key: Buffer.from(pems.private, 'utf8'),
-                cert: Buffer.from(pems.cert, 'utf8'),
-            },
-        };
+    await eachSeries(domains, async ({ domainName, forwardHost, forwardPort, useSSL }) => {
+        // const pems = await generateSelfSignedCert([{ name: 'commonName', value: domainName }]);
+
+        const options: any = {};
+
+        if (useSSL) {
+            options.ssl = {
+                letsencrypt: {
+                    email: process.env.SSL_EMAIL || 'gscoon@gmail.com',
+                    production: process.env.NODE_ENV === 'production',
+                }
+            };
+        }
+
         const outgoing = `${forwardHost}:${forwardPort}`;
         console.log(`Domain: ${domainName}`)
         console.log(`Outgoing: ${outgoing}`)
