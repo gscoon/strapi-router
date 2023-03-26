@@ -1,3 +1,8 @@
+import https from 'https';
+import httpProxy from 'http-proxy';
+import Greenlock from 'greenlock';
+import express, { Application, Request, Response, NextFunction } from 'express';
+import fs from 'fs';
 import Path from 'path';
 import { getCMSData, eachSeries, ICollectionItem } from './util';
 import selfsigned from 'selfsigned';
@@ -5,6 +10,7 @@ import axios from 'axios';
 import { domain } from 'process';
 
 const rootParentDir = Path.join(__dirname, './../');
+const staticDir = Path.join(rootParentDir, './static');
 
 require('dotenv').config({
     path: Path.join(rootParentDir, '.env')
@@ -25,65 +31,113 @@ interface iDomain {
 }
 
 
-const port = parseInt(process.env.ROUTER_PORT || '8080');
+
+const proxy = httpProxy.createProxyServer();
+
+const portUnsecure = parseInt(process.env.ROUTER_PORT || '8080');
 const portSecure = parseInt(process.env.ROUTER_PORT_SECURE || '4433');
 
-(async () => {
-    try {
-        const { data } = await authGET('/api/domains');
+(() => start())();
 
-        const domains = data.map(({ id, attributes }) => {
-            const { domainName, forwardHost, forwardPort, useSSL } = attributes;
-            return { id, domainName, forwardHost, forwardPort, useSSL };
-        });
+async function start() {
+    const domains = await getDomains();
+    console.log('domains', domains);
 
-        console.log('domains', domains);
+    await doGreenlock(domains);
 
-        setupRouter(domains);
-    } catch (err) {
-        console.error('err', err);
-    }
-
-})();
-
-async function setupRouter(domains: iDomain[]) {
-    const sslPath = process.env.SSL_PATH ? process.env.SSL_PATH : Path.join(rootParentDir, './ssl');
-    const timeout = process.env.PROXY_TIMEOUT ? parseInt(process.env.PROXY_TIMEOUT) : 600000;
-    const proxy = require('redbird')({
-        secure: false,
-        port,
-        letsencrypt: {
-            path: sslPath,
-            // port: 9999 // LetsEncrypt minimal web server port for handling challenges. Routed 80->9999, no need to open 9999 in firewall. Default 3000 if not defined.
-        },
-        ssl: {
-            // http2: true,
-            port: portSecure, // SSL port used to serve registered https routes with LetsEncrypt certificate.
-        },
-        timeout,
-        proxyTimeout: timeout,
-    });
-
-    await eachSeries(domains, async ({ domainName, forwardHost, forwardPort, useSSL }) => {
-        // const pems = await generateSelfSignedCert([{ name: 'commonName', value: domainName }]);
-
-        const options: any = {};
-
-        if (useSSL) {
-            options.ssl = {
-                letsencrypt: {
-                    email: process.env.SSL_EMAIL || 'gscoon@gmail.com',
-                    production: process.env.NODE_ENV === 'production',
-                }
-            };
+    const app = express();
+    app.use((req: Request, res: Response, next: NextFunction) => {
+        const domain = domains.find((d) => d.domainName === req.headers.host);
+        if (!domain) {
+            return res.status(404).send(`Domain not found ${domain}`);
         }
 
-        const outgoing = `${forwardHost}:${forwardPort}`;
-        console.log(`Domain: ${domainName}`)
-        console.log(`Outgoing: ${outgoing}`)
-        proxy.register(domainName, outgoing, options);
+        const target = `${domain.forwardHost}:${domain.forwardPort}`;
+
+        proxy.web(req, res, { target }, (err) => {
+            console.error('Proxy error', err);
+            res.status(404).send(`Domain proxy error`);
+        });
+    });
+
+    app.listen(portUnsecure, () => {
+        console.log(`Listening on port ${portUnsecure}`);
     });
 }
+
+async function getDomains(): Promise<iDomain[]> {
+    const { data } = await authGET('/api/domains');
+
+    const domains = data.map(({ id, attributes }) => {
+        const { domainName, forwardHost, forwardPort, useSSL } = attributes;
+        return { id, domainName, forwardHost, forwardPort, useSSL };
+    });
+
+    return domains;
+}
+
+async function doGreenlock(domains: iDomain[]) {
+    const staticServer = await setupStaticServer();
+
+    const greenlock = Greenlock.create({
+        packageRoot: rootParentDir,
+        maintainerEmail: 'gscoon@gmail.com',
+        configDir: Path.join(rootParentDir, './greenlock.d'),
+        staging: true,
+        notify: function (event, details) {
+            if ('error' === event) {
+                // `details` is an error object in this case
+                console.error(details);
+            }
+        },
+        renewWithin: 81 * 24 * 60 * 60 * 1000,
+        renewBy: 80 * 24 * 60 * 60 * 1000,
+    })
+
+
+    await greenlock.manager.defaults({
+        agreeToTerms: true,
+        subscriberEmail: 'gscoon@gmail.com',
+        challenges: {
+            "http-01": {
+                module: "acme-http-01-webroot",
+                webroot: staticDir,
+            }
+        }
+    })
+
+    await eachSeries(domains, async ({ domainName }) => {
+        console.log('Adding domain', domainName);
+
+        try {
+            const data = await greenlock.add({
+                subject: domainName,
+                altnames: [domainName]
+            });
+
+            console.log('greenlock success', data);
+        } catch (err) {
+            console.error('Error adding domain', domainName, err);
+        }
+    });
+
+    staticServer.close();
+
+    console.log('Finished greenlock')
+}
+
+async function setupStaticServer(): Promise<Application> {
+    const staticApp = express();
+    staticApp.use(express.static(staticDir));
+
+    return new Promise((resolve) => {
+        const server = staticApp.listen(portUnsecure, () => {
+            console.log(`Listening on port ${portUnsecure}`);
+            resolve(server);
+        });
+    })
+}
+
 
 async function authGET(endPoint: string): Promise<any> {
     const apiHost = getCMSAPIHost();
@@ -106,18 +160,6 @@ function getCMSAPIHost() {
     return `${cmsHost}:${cmsPort}`;
 }
 
-function generateSelfSignedCert(attrs): Promise<iCert> {
-    return new Promise((resolve, reject) => {
-        selfsigned.generate(attrs, { days: 365 }, function (err, pems) {
-            if (err) {
-                return reject(err);
-            }
-
-            resolve(pems);
-        });
-    });
-}
-
 function getAuthCMSOptions() {
     const apiToken = process.env.CMS_API_TOKEN || 'token-not-set';
 
@@ -127,3 +169,13 @@ function getAuthCMSOptions() {
         }
     }
 }
+
+// const httpsOptions = {
+//     key: fs.readFileSync('/path/to/private/key.pem'),
+//     cert: fs.readFileSync('/path/to/certificate.pem'),
+// };
+
+// https.createServer(
+//     httpsOptions,
+//     greenlock.middleware(app)
+// ).listen(443);
