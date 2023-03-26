@@ -30,8 +30,6 @@ interface iDomain {
     useSSL: boolean,
 }
 
-
-
 const proxy = httpProxy.createProxyServer();
 
 const portUnsecure = parseInt(process.env.ROUTER_PORT || '8080');
@@ -45,24 +43,24 @@ async function start() {
 
     await doGreenlock(domains);
 
-    // const app = express();
-    // app.use((req: Request, res: Response, next: NextFunction) => {
-    //     const domain = domains.find((d) => d.domainName === req.headers.host);
-    //     if (!domain) {
-    //         return res.status(404).send(`Domain not found ${req.headers.host}`);
-    //     }
+    const app = express();
+    app.use((req: Request, res: Response, next: NextFunction) => {
+        const domain = domains.find((d) => d.domainName === req.headers.host);
+        if (!domain) {
+            return res.status(404).send(`Domain not found ${req.headers.host}`);
+        }
 
-    //     const target = `${domain.forwardHost}:${domain.forwardPort}`;
+        const target = `${domain.forwardHost}:${domain.forwardPort}`;
 
-    //     proxy.web(req, res, { target }, (err) => {
-    //         console.error('Proxy error', err);
-    //         res.status(404).send(`Domain proxy error`);
-    //     });
-    // });
+        proxy.web(req, res, { target }, (err) => {
+            console.error('Proxy error', err);
+            res.status(404).send(`Domain proxy error`);
+        });
+    });
 
-    // app.listen(portUnsecure, () => {
-    //     console.log(`Listening on port ${portUnsecure}`);
-    // });
+    app.listen(portUnsecure, () => {
+        console.log(`Listening on port ${portUnsecure}`);
+    });
 }
 
 async function getDomains(): Promise<iDomain[]> {
@@ -122,7 +120,7 @@ async function doGreenlock(domains: iDomain[]) {
     });
 
     console.log('Closing static server')
-    // staticServer.close();
+    staticServer.close();
 }
 
 async function setupStaticServer(): Promise<Application> {
@@ -168,13 +166,3 @@ function getAuthCMSOptions() {
         }
     }
 }
-
-// const httpsOptions = {
-//     key: fs.readFileSync('/path/to/private/key.pem'),
-//     cert: fs.readFileSync('/path/to/certificate.pem'),
-// };
-
-// https.createServer(
-//     httpsOptions,
-//     greenlock.middleware(app)
-// ).listen(443);
