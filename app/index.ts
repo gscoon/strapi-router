@@ -5,6 +5,7 @@ import axios from 'axios';
 import { domain } from 'process';
 
 const rootParentDir = Path.join(__dirname, './../');
+
 require('dotenv').config({
     path: Path.join(rootParentDir, '.env')
 });
@@ -29,7 +30,6 @@ const portSecure = parseInt(process.env.ROUTER_PORT_SECURE || '4433');
 (async () => {
     try {
         const { data } = await authGET('/api/domains');
-        console.log(data);
 
         const domains = data.map(({ id, attributes }) => {
             const { domainName, forwardHost, forwardPort } = attributes;
@@ -46,17 +46,21 @@ const portSecure = parseInt(process.env.ROUTER_PORT_SECURE || '4433');
 })();
 
 async function setupRouter(domains: iDomain[]) {
+    const sslPath = process.env.SSL_PATH ? process.env.SSL_PATH : Path.join(rootParentDir, './ssl');
+    const timeout = process.env.PROXY_TIMEOUT ? parseInt(process.env.PROXY_TIMEOUT) : 600000;
     const proxy = require('redbird')({
         secure: false,
         port,
-        // letsencrypt: {
-        //     path: Path.join(rootParentDir, './ssl'),
-        //     // port: 9999 // LetsEncrypt minimal web server port for handling challenges. Routed 80->9999, no need to open 9999 in firewall. Default 3000 if not defined.
-        // },
+        letsencrypt: {
+            path: sslPath,
+            // port: 9999 // LetsEncrypt minimal web server port for handling challenges. Routed 80->9999, no need to open 9999 in firewall. Default 3000 if not defined.
+        },
         ssl: {
-            http2: true,
-            port: portSecure, // SSL port used to serve registered https routes with LetsEncrypt certificate.
-        }
+            // http2: true,
+            port: 443, // SSL port used to serve registered https routes with LetsEncrypt certificate.
+        },
+        timeout,
+        proxyTimeout: timeout,
     });
 
     await eachSeries(domains, async ({ domainName, forwardHost, forwardPort }) => {
