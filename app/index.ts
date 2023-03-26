@@ -49,7 +49,7 @@ async function start() {
     app.use((req: Request, res: Response, next: NextFunction) => {
         const domain = domains.find((d) => d.domainName === req.headers.host);
         if (!domain) {
-            return res.status(404).send(`Domain not found ${domain}`);
+            return res.status(404).send(`Domain not found ${req.headers.host}`);
         }
 
         const target = `${domain.forwardHost}:${domain.forwardPort}`;
