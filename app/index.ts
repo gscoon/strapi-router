@@ -66,7 +66,8 @@ async function start() {
         }
 
         const target = `http://${domain.forwardHost}:${domain.forwardPort}`;
-        console.log('Proxying target', target);
+        console.log(`Source: ${req.headers.host}`);
+        console.log(`Target: ${target}`);
 
         proxy.web(req, res, { target }, (err) => {
             console.error('Proxy error', err);
