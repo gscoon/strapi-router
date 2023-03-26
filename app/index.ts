@@ -41,9 +41,8 @@ async function start() {
     const domains = await getDomains();
     console.log('domains', domains);
 
-    await doGreenlock(domains);
-
     const app = express();
+    app.use(express.static(staticDir));
     app.use((req: Request, res: Response, next: NextFunction) => {
         const domain = domains.find((d) => d.domainName === req.headers.host);
         if (!domain) {
@@ -58,9 +57,25 @@ async function start() {
         });
     });
 
-    app.listen(portUnsecure, () => {
+    app.listen(portUnsecure, async () => {
         console.log(`Listening on port ${portUnsecure}`);
+        await doGreenlock(domains);
+
+        await eachSeries(domains, async ({ domainName }) => {
+        });
     });
+
+
+
+    // const httpsOptions = {
+//     key: fs.readFileSync('/path/to/private/key.pem'),
+//     cert: fs.readFileSync('/path/to/certificate.pem'),
+// };
+
+// https.createServer(
+//     httpsOptions,
+//     greenlock.middleware(app)
+// ).listen(443);
 }
 
 async function getDomains(): Promise<iDomain[]> {
@@ -75,8 +90,6 @@ async function getDomains(): Promise<iDomain[]> {
 }
 
 async function doGreenlock(domains: iDomain[]) {
-    const staticServer = await setupStaticServer();
-
     const greenlock = Greenlock.create({
         packageRoot: rootParentDir,
         maintainerEmail: 'gscoon@gmail.com',
@@ -118,9 +131,6 @@ async function doGreenlock(domains: iDomain[]) {
             console.error('Error adding domain', domainName, err);
         }
     });
-
-    console.log('Closing static server')
-    staticServer.close();
 }
 
 async function setupStaticServer(): Promise<Application> {
