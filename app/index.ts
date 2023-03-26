@@ -49,7 +49,7 @@ async function start() {
             return res.status(404).send(`Domain not found ${req.headers.host}`);
         }
 
-        const target = `${domain.forwardHost}:${domain.forwardPort}`;
+        const target = `http://${domain.forwardHost}:${domain.forwardPort}`;
         console.log('Proxying target', target);
 
         proxy.web(req, res, { target }, (err) => {
