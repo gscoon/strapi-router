@@ -130,7 +130,7 @@ async function setupStaticServer(): Promise<Application> {
     staticApp.use(express.static(staticDir));
 
     return new Promise((resolve) => {
-        const server = staticApp.listen(portUnsecure, () => {
+        const server = staticApp.listen(portUnsecure, '0.0.0.0', () => {
             console.log(`Listening on port ${portUnsecure}`);
             resolve(server);
         });
