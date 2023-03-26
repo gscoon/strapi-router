@@ -58,7 +58,7 @@ async function setupRouter(domains: iDomain[]) {
         },
         ssl: {
             // http2: true,
-            port: 443, // SSL port used to serve registered https routes with LetsEncrypt certificate.
+            port: portSecure, // SSL port used to serve registered https routes with LetsEncrypt certificate.
         },
         timeout,
         proxyTimeout: timeout,
