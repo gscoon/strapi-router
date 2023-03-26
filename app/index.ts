@@ -60,7 +60,7 @@ async function start() {
     //     });
     // });
 
-    // app.listen(portUnsecure, () => {
+    // app.listen(`0.0.0.0:${portUnsecure}`, () => {
     //     console.log(`Listening on port ${portUnsecure}`);
     // });
 }
@@ -130,7 +130,7 @@ async function setupStaticServer(): Promise<Application> {
     staticApp.use(express.static(staticDir));
 
     return new Promise((resolve) => {
-        const server = staticApp.listen(portUnsecure, () => {
+        const server = staticApp.listen(`0.0.0.0:${portUnsecure}`, () => {
             console.log(`Listening on port ${portUnsecure}`);
             resolve(server);
         });
