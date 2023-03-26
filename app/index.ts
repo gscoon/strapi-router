@@ -57,9 +57,9 @@ async function start() {
     const domains = await getDomains();
     console.log('domains', domains);
 
-    const appUnsecure = express();
-    appUnsecure.use(express.static(staticDir));
-    appUnsecure.use((req: Request, res: Response, next: NextFunction) => {
+    const app = express();
+    app.use(express.static(staticDir));
+    app.use((req: Request, res: Response, next: NextFunction) => {
         const domain = domains.find((d) => d.domainName === req.headers.host);
         if (!domain) {
             return res.status(404).send(`Domain not found ${req.headers.host}`);
@@ -75,7 +75,7 @@ async function start() {
         });
     });
 
-    appUnsecure.listen(portUnsecure, async () => {
+    app.listen(portUnsecure, async () => {
         console.log(`Listening on port ${portUnsecure}`);
         await doGreenlock(domains);
 
@@ -102,10 +102,10 @@ async function start() {
 
     const secureServer = https.createServer({
         SNICallback: sniCallback,
-    });
+    }, app);
 
     secureServer.listen(portSecure, () => {
-        console.log(`Listening on port ${portSecure}`);
+        console.log(`Listening on secure port ${portSecure}`);
     });
 }
 
