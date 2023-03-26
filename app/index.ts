@@ -101,7 +101,7 @@ async function doGreenlock(domains: iDomain[]) {
         challenges: {
             "http-01": {
                 module: "acme-http-01-webroot",
-                webroot: staticDir,
+                webroot: Path.join(staticDir, '.well-known/acme-challenge'),
             }
         }
     })
