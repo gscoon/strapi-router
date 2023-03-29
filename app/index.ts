@@ -3,12 +3,9 @@ import tls from 'tls';
 import httpProxy from 'http-proxy';
 import Greenlock from 'greenlock';
 import express, { Application, Request, Response, NextFunction } from 'express';
-import fs from 'fs';
 import Path from 'path';
 import { getCMSData, eachSeries, ICollectionItem } from './util';
-import selfsigned from 'selfsigned';
 import axios from 'axios';
-import { domain } from 'process';
 
 const rootParentDir = Path.join(__dirname, './../');
 const staticDir = Path.join(rootParentDir, './static');
@@ -78,9 +75,6 @@ async function start() {
     app.listen(portUnsecure, async () => {
         console.log(`Listening on port ${portUnsecure}`);
         await doGreenlock(domains);
-
-        await eachSeries(domains, async ({ domainName }) => {
-        });
     });
 
     const sniCallback = async (servername, callback) => {
@@ -91,7 +85,7 @@ async function start() {
         })
 
         if (!site) {
-            callback(new Error('No site found'));
+            return callback(new Error('No site found'));
         }
 
         callback(null, tls.createSecureContext({
@@ -132,7 +126,11 @@ async function doGreenlock(domains: iDomain[]) {
         }
     })
 
-    await eachSeries(domains, async ({ domainName }) => {
+    await eachSeries(domains, async ({ domainName, useSSL }) => {
+        if (!useSSL) {
+            return;
+        }
+
         console.log('Adding domain', domainName);
 
         try {
